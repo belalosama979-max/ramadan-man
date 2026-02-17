@@ -29,8 +29,8 @@ const QuestionPage = () => {
     }
 
     // Check if user already submitted for this question
-    const checkSubmission = () => {
-        const submitted = SubmissionService.hasUserAnswered(activeQuestion.id, user);
+    const checkSubmission = async () => {
+        const submitted = await SubmissionService.hasUserAnswered(activeQuestion.id, user);
         setHasSubmitted(submitted);
         setStatus(submitted ? 'submitted' : 'active');
     };
@@ -38,7 +38,7 @@ const QuestionPage = () => {
     checkSubmission();
   }, [activeQuestion, user]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!answer.trim()) return;
     
@@ -51,7 +51,7 @@ const QuestionPage = () => {
     setStatus('submitting');
     
     try {
-        SubmissionService.submit({
+        await SubmissionService.submit({
             user,
             question: activeQuestion,
             answer

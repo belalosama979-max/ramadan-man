@@ -1,7 +1,4 @@
-import { StorageService } from './storageService';
-import { v4 as uuidv4 } from 'uuid';
-
-const SUBMISSIONS_KEY = 'dal_submissions';
+import { supabase } from '../lib/supabaseClient';
 
 /**
  * Submission Model:
@@ -17,35 +14,41 @@ const SUBMISSIONS_KEY = 'dal_submissions';
  */
 
 export const SubmissionService = {
-  getAll: () => {
-    return StorageService.get(SUBMISSIONS_KEY, {});
+  getAll: async () => {
+    const { data, error } = await supabase
+        .from('submissions')
+        .select('*');
+    if (error) throw error;
+    return data.map(mapSubmission);
   },
 
-  getByQuestionId: (questionId) => {
-    const allSubmissions = SubmissionService.getAll();
-    return allSubmissions[questionId] || [];
+  getByQuestionId: async (questionId) => {
+    const { data, error } = await supabase
+        .from('submissions')
+        .select('*')
+        .eq('question_id', questionId);
+        
+    if (error) throw error;
+    return data.map(mapSubmission);
   },
 
-  submit: ({ user, question, answer }) => {
+  submit: async ({ user, question, answer }) => {
     if (!question || !user || !answer) {
         throw new Error("Invalid submission data.");
     }
 
-    // 1. Check if question is still active (Server-side validation simulation)
+    // 1. Check if question is still active (Client-side validation using passed object)
     const now = new Date();
     const end = new Date(question.endTime);
     if (now > end) {
         throw new Error("انتهى وقت الإجابة على هذا السؤال.");
     }
 
-    const allSubmissions = SubmissionService.getAll();
-    const questionSubmissions = allSubmissions[question.id] || [];
-
-    // 2. Normalize Name for Duplicate Check
+    // 2. Normalize Name
     const normalizedName = user.trim().toLowerCase();
 
-    // 3. Strict: One submission per person per question
-    const hasSubmitted = questionSubmissions.some(s => s.normalizedName === normalizedName);
+    // 3. Strict: One submission per person per question (Async Check)
+    const hasSubmitted = await SubmissionService.hasUserAnswered(question.id, user);
     if (hasSubmitted) {
         throw new Error("لقد قمت بالإجابة على هذا السؤال مسبقاً.");
     }
@@ -53,27 +56,51 @@ export const SubmissionService = {
     // 4. Check Answer (Case-insensitive)
     const isCorrect = answer.trim().toLowerCase() === question.correctAnswer.trim().toLowerCase();
 
-    const newSubmission = {
-        id: uuidv4(),
-        questionId: question.id,
-        name: user.trim(),
-        normalizedName: normalizedName,
-        answer: answer.trim(),
-        isCorrect: isCorrect,
-        submittedAt: new Date().toISOString()
-    };
+    // 5. Save to Supabase
+    const { data, error } = await supabase
+        .from('submissions')
+        .insert([{
+            question_id: question.id,
+            name: user.trim(),
+            normalized_name: normalizedName,
+            answer: answer.trim(),
+            is_correct: isCorrect,
+            // id and submitted_at handled by DB
+        }])
+        .select()
+        .single();
 
-    // 5. Save Logic (Append to question bucket)
-    allSubmissions[question.id] = [...questionSubmissions, newSubmission];
-    StorageService.set(SUBMISSIONS_KEY, allSubmissions);
+    if (error) throw error;
 
-    return newSubmission;
+    return mapSubmission(data);
   },
 
-  hasUserAnswered: (questionId, userName) => {
+  hasUserAnswered: async (questionId, userName) => {
       if (!userName) return false;
-      const submissions = SubmissionService.getByQuestionId(questionId);
       const normalized = userName.trim().toLowerCase();
-      return submissions.some(s => s.normalizedName === normalized);
+      
+      const { count, error } = await supabase
+        .from('submissions')
+        .select('id', { count: 'exact', head: true })
+        .eq('question_id', questionId)
+        .eq('normalized_name', normalized);
+
+      if (error) {
+          console.error("Error checking submission:", error);
+          return false;
+      }
+      
+      return count > 0;
   }
 };
+
+// Helper to map snake_case DB to camelCase model
+const mapSubmission = (s) => ({
+    id: s.id,
+    questionId: s.question_id,
+    name: s.name,
+    normalizedName: s.normalized_name,
+    answer: s.answer,
+    isCorrect: s.is_correct,
+    submittedAt: s.submitted_at
+});

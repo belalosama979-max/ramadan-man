@@ -32,16 +32,26 @@ const AdminPage = () => {
     };
     
     // Refresh data
-    const refreshData = () => {
-        const loadedQuestions = QuestionService.getAll();
-        setQuestions(loadedQuestions);
-        
-        // Auto-select active questionnaire
-        const active = QuestionService.getActive(loadedQuestions);
-        if (active) {
-            setSelectedQuestionId(active.id);
-        } else if (loadedQuestions.length > 0 && !selectedQuestionId) {
-            setSelectedQuestionId(loadedQuestions[0].id);
+    const refreshData = async () => {
+        try {
+            const loadedQuestions = await QuestionService.getAll();
+            setQuestions(loadedQuestions);
+            
+            // Auto-select active questionnaire (Logic replicated in memory for UI efficiency)
+            const now = new Date();
+            const active = loadedQuestions.find(q => {
+               const start = new Date(q.startTime);
+               const end = new Date(q.endTime);
+               return now >= start && now <= end;
+            });
+
+            if (active) {
+                setSelectedQuestionId(active.id);
+            } else if (loadedQuestions.length > 0 && !selectedQuestionId) {
+                setSelectedQuestionId(loadedQuestions[0].id);
+            }
+        } catch (error) {
+            console.error("Failed to load questions:", error);
         }
     };
 
@@ -52,20 +62,27 @@ const AdminPage = () => {
 
     // Fetch submissions when selected question changes
     useEffect(() => {
-        if (selectedQuestionId) {
-            const loadedSubmissions = SubmissionService.getByQuestionId(selectedQuestionId);
-            setSubmissions(loadedSubmissions);
-        } else {
-            setSubmissions([]);
-        }
+        const fetchSubmissions = async () => {
+            if (selectedQuestionId) {
+                try {
+                    const loadedSubmissions = await SubmissionService.getByQuestionId(selectedQuestionId);
+                    setSubmissions(loadedSubmissions);
+                } catch (error) {
+                    console.error("Failed to load submissions:", error);
+                }
+            } else {
+                setSubmissions([]);
+            }
+        };
+        fetchSubmissions();
     }, [selectedQuestionId]);
 
-    const handleAddQuestion = (e) => {
+    const handleAddQuestion = async (e) => {
         e.preventDefault();
         try {
-            QuestionService.add(newQuestion);
+            await QuestionService.add(newQuestion);
             setNewQuestion({ text: '', correctAnswer: '', startTime: '', endTime: '' });
-            refreshData();
+            await refreshData();
             alert('تم إضافة السؤال بنجاح');
         } catch (error) {
             alert(error.message);
@@ -258,11 +275,11 @@ const AdminPage = () => {
                                                 <p className="text-xs text-gray-400 mt-1">سيتم إعلان الفائز بعد انتهاء الوقت</p>
                                                 
                                                 <button
-                                                    onClick={() => {
+                                                    onClick={async () => {
                                                         if (window.confirm('هل أنت متأكد من إنهاء الفعالية الآن؟ سيتم إغلاق باب الإجابات فوراً.')) {
                                                             try {
-                                                                QuestionService.forceEnd(activeQuestion.id);
-                                                                refreshData();
+                                                                await QuestionService.forceEnd(activeQuestion.id);
+                                                                await refreshData();
                                                             } catch (e) {
                                                                 alert(e.message);
                                                             }

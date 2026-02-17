@@ -18,9 +18,13 @@ export const GameProvider = ({ children }) => {
     }
     
     // Check for active question
-    const checkActiveQuestion = () => {
-        const question = QuestionService.getActive();
-        setActiveQuestion(question);
+    const checkActiveQuestion = async () => {
+        try {
+            const question = await QuestionService.getActive();
+            setActiveQuestion(question);
+        } catch (error) {
+            console.error("Failed to check active question:", error);
+        }
     };
 
     checkActiveQuestion();
@@ -42,11 +46,11 @@ export const GameProvider = ({ children }) => {
     StorageService.remove('dal_user');
   };
 
-  const submitAnswer = (answer) => {
+  const submitAnswer = async (answer) => {
     if (!user || !activeQuestion) return;
 
     try {
-        const result = SubmissionService.submit({
+        const result = await SubmissionService.submit({
             user,
             question: activeQuestion,
             answer

@@ -15,7 +15,7 @@ const NameEntryPage = () => {
     }
   }, [user, navigate]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!name.trim()) {
       setError('الرجاء إدخال الاسم للمتابعة');
@@ -24,7 +24,7 @@ const NameEntryPage = () => {
     
     // Check if name already submitted for the ACTIVE question
     if (activeQuestion) {
-        const hasSubmit = SubmissionService.hasUserAnswered(activeQuestion.id, name);
+        const hasSubmit = await SubmissionService.hasUserAnswered(activeQuestion.id, name);
         if (hasSubmit) {
             setError('هذا الاسم شارك بالفعل في هذا السؤال. يرجى استخدام اسم آخر أو انتظار السؤال القادم.');
             return;

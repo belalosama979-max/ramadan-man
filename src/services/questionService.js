@@ -1,7 +1,4 @@
-import { StorageService } from './storageService';
-import { v4 as uuidv4 } from 'uuid';
-
-const QUESTIONS_KEY = 'dal_questions';
+import { supabase } from '../lib/supabaseClient';
 
 /**
  * Question Model:
@@ -16,13 +13,26 @@ const QUESTIONS_KEY = 'dal_questions';
  */
 
 export const QuestionService = {
-  getAll: () => {
-    return StorageService.get(QUESTIONS_KEY, []);
+  // Fetch all questions
+  getAll: async () => {
+    const { data, error } = await supabase
+      .from('questions')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    
+    // Map back to camelCase for app consistency
+    return data.map(q => ({
+        ...q,
+        correctAnswer: q.correct_answer,
+        startTime: q.start_time,
+        endTime: q.end_time,
+        createdAt: q.created_at
+    }));
   },
 
-  add: (questionData) => {
-    const questions = QuestionService.getAll();
-    
+  add: async (questionData) => {
     // Validate inputs
     if (!questionData.text || !questionData.correctAnswer || !questionData.startTime || !questionData.endTime) {
       throw new Error("Missing required question fields.");
@@ -32,45 +42,79 @@ export const QuestionService = {
         throw new Error("End time must be after start time.");
     }
 
-    const newQuestion = {
-      id: uuidv4(),
-      text: questionData.text,
-      correctAnswer: questionData.correctAnswer,
-      startTime: questionData.startTime,
-      endTime: questionData.endTime,
-      createdAt: new Date().toISOString()
-    };
+    const { data, error } = await supabase
+      .from('questions')
+      .insert([{
+          text: questionData.text,
+          correct_answer: questionData.correctAnswer,
+          start_time: questionData.startTime,
+          end_time: questionData.endTime,
+          // id and created_at handled by DB defaults
+      }])
+      .select()
+      .single();
 
-    questions.push(newQuestion);
-    StorageService.set(QUESTIONS_KEY, questions);
-    return newQuestion;
+    if (error) throw error;
+    
+    return {
+        ...data,
+        correctAnswer: data.correct_answer,
+        startTime: data.start_time,
+        endTime: data.end_time,
+        createdAt: data.created_at
+    };
   },
 
-  getActive: () => {
-    const questions = QuestionService.getAll();
-    const now = new Date();
+  getActive: async () => {
+    const now = new Date().toISOString();
+    
+    // Fetch questions that started before NOW and end after NOW
+    const { data, error } = await supabase
+        .from('questions')
+        .select('*')
+        .lte('start_time', now)
+        .gte('end_time', now)
+        .maybeSingle(); // Expecting one active question at a time
 
-    return questions.find(q => {
-      const start = new Date(q.startTime);
-      const end = new Date(q.endTime);
-      return now >= start && now <= end;
-    });
+    if (error) {
+        console.error("Error fetching active question:", error);
+        return null;
+    }
+    
+    if (!data) return null;
+
+    return {
+        ...data,
+        correctAnswer: data.correct_answer,
+        startTime: data.start_time,
+        endTime: data.end_time,
+        createdAt: data.created_at
+    };
   },
 
   // Get currently active or future questions
-  getSchedule: () => {
-      const questions = QuestionService.getAll();
-      return questions.sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
+  getSchedule: async () => {
+      const all = await QuestionService.getAll();
+      return all.sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
   },
 
-  forceEnd: (id) => {
-      const questions = QuestionService.getAll();
-      const index = questions.findIndex(q => q.id === id);
-      if (index === -1) throw new Error("Question not found");
+  forceEnd: async (id) => {
+      const now = new Date().toISOString();
+      const { data, error } = await supabase
+        .from('questions')
+        .update({ end_time: now })
+        .eq('id', id)
+        .select()
+        .single();
 
-      // Update endTime to now
-      questions[index].endTime = new Date().toISOString();
-      StorageService.set(QUESTIONS_KEY, questions);
-      return questions[index];
+      if (error) throw error;
+
+      return {
+          ...data,
+          correctAnswer: data.correct_answer,
+          startTime: data.start_time,
+          endTime: data.end_time,
+          createdAt: data.created_at
+      };
   }
 };
