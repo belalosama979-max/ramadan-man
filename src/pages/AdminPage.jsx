@@ -80,21 +80,14 @@ const AdminPage = () => {
     const handleAddQuestion = async (e) => {
         e.preventDefault();
         
-        // Helper to convert local input time to UTC ISO string
-        const toUTC = (localValue) => {
-            const date = new Date(localValue);
-            return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString();
-        };
-
         try {
+            // Strictly use ISO string from local input (browser handles local -> UTC conversion)
             const questionData = {
                 ...newQuestion,
-                startTime: toUTC(newQuestion.startTime),
-                endTime: toUTC(newQuestion.endTime)
+                startTime: new Date(newQuestion.startTime).toISOString(),
+                endTime: new Date(newQuestion.endTime).toISOString()
             };
             
-            console.log("Adding question with UTC times:", questionData.startTime, questionData.endTime); 
-
             await QuestionService.add(questionData);
             setNewQuestion({ text: '', correctAnswer: '', startTime: '', endTime: '' });
             await refreshData();
