@@ -79,8 +79,23 @@ const AdminPage = () => {
 
     const handleAddQuestion = async (e) => {
         e.preventDefault();
+        
+        // Helper to convert local input time to UTC ISO string
+        const toUTC = (localValue) => {
+            const date = new Date(localValue);
+            return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString();
+        };
+
         try {
-            await QuestionService.add(newQuestion);
+            const questionData = {
+                ...newQuestion,
+                startTime: toUTC(newQuestion.startTime),
+                endTime: toUTC(newQuestion.endTime)
+            };
+            
+            console.log("Adding question with UTC times:", questionData.startTime, questionData.endTime); 
+
+            await QuestionService.add(questionData);
             setNewQuestion({ text: '', correctAnswer: '', startTime: '', endTime: '' });
             await refreshData();
             alert('تم إضافة السؤال بنجاح');
