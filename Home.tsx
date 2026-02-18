@@ -1,5 +1,4 @@
 import { useNavigate } from "react-router-dom";
-import islamicPattern from "@/assets/islamic-pattern.png";
 import dalLogo from "@/assets/dal-logo-hd.png";
 
 const Home = () => {
@@ -10,7 +9,7 @@ const Home = () => {
       {/* Background pattern */}
       <div
         className="absolute inset-0 opacity-20"
-        style={{ backgroundImage: `url(${islamicPattern})`, backgroundSize: "300px" }}
+        style={{ background: "radial-gradient(circle at top right, #14532D, #052E1B)" }}
       />
       <div className="absolute inset-0 bg-gradient-to-b from-background/50 via-background/80 to-background" />
 

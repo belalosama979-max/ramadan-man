@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { setUserName } from "@/lib/store";
-import islamicPattern from "@/assets/islamic-pattern.png";
 
 const NameEntry = () => {
   const [name, setName] = useState("");
@@ -19,7 +18,7 @@ const NameEntry = () => {
     <div className="relative min-h-screen flex items-center justify-center px-4">
       <div
         className="absolute inset-0 opacity-10"
-        style={{ backgroundImage: `url(${islamicPattern})`, backgroundSize: "300px" }}
+        style={{ background: "radial-gradient(circle at top right, #14532D, #052E1B)" }}
       />
       <div className="absolute inset-0 bg-gradient-to-b from-background/60 to-background" />
 
