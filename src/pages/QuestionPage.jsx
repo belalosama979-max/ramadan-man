@@ -283,11 +283,7 @@ const QuestionPage = () => {
                 
                 {/* Header */}
                 <div className="bg-gradient-to-r from-primary to-primary-dark p-8 text-white text-center relative overflow-hidden">
-                    <div className="absolute inset-0 opacity-10" 
-                    style={{
-  backgroundImage: `url("/islamic-pattern.png")`
-
-                    , backgroundImage: `url(${islamicPattern})`, backgroundSize: "300px" }}></div>
+                    <div className="absolute inset-0 opacity-10" style={{ backgroundImage: `url(${islamicPattern})`, backgroundSize: "300px" }}></div>
                     
                     {/* Active Timer Badge */}
                     <div className={`inline-flex items-center gap-2 px-4 py-1 rounded-full mb-4 text-sm font-bold tracking-wider ${isEnded ? 'bg-red-500/20 text-red-100' : 'bg-white/20 text-yellow-300'}`}>
