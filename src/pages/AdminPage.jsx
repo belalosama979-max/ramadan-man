@@ -358,7 +358,7 @@ const AdminPage = () => {
                                              if (!showWinner) {
                                                  await GameSettingsService.setCurrentQuestion(selectedQuestionId);
                                              }
-                                             const newValue = await GameSettingsService.toggleShowWinner(showWinner);
+                                             const newValue = await GameSettingsService.toggleShowWinner(showWinner, winner?.name || null);
                                              setShowWinner(newValue);
                                          } catch (e) {
                                              console.error('Error toggling winner:', e);

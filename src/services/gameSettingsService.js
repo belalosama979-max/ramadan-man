@@ -3,14 +3,14 @@ import { supabase } from '../lib/supabaseClient';
 /**
  * Game Settings Service
  * Manages the single-row game_settings table (UUID primary key).
- * Controls: show_winner toggle, current_question_id tracking.
+ * Controls: show_winner toggle, current_question_id tracking, winner_name.
  */
 
 export const GameSettingsService = {
 
   /**
    * Get the single settings row. Creates one if none exists.
-   * Returns: { id, showWinner, currentQuestionId }
+   * Returns: { id, showWinner, currentQuestionId, winnerName }
    */
   getSettings: async () => {
     const { data, error } = await supabase
@@ -25,6 +25,7 @@ export const GameSettingsService = {
         id: data.id,
         showWinner: data.show_winner ?? false,
         currentQuestionId: data.current_question_id ?? null,
+        winnerName: data.winner_name ?? null,
       };
     }
 
@@ -44,14 +45,15 @@ export const GameSettingsService = {
       id: created.id,
       showWinner: false,
       currentQuestionId: null,
+      winnerName: null,
     };
   },
 
   /**
    * Toggle the show_winner flag.
-   * Fetches real UUID first, then updates by that UUID.
+   * When enabling, stores winnerName. When disabling, clears it.
    */
-  toggleShowWinner: async (currentValue) => {
+  toggleShowWinner: async (currentValue, winnerName = null) => {
     const settings = await GameSettingsService.getSettings();
     if (!settings.id) throw new Error('No game settings row found');
 
@@ -59,7 +61,10 @@ export const GameSettingsService = {
 
     const { error } = await supabase
       .from('game_settings')
-      .update({ show_winner: newValue })
+      .update({
+        show_winner: newValue,
+        winner_name: newValue ? winnerName : null,
+      })
       .eq('id', settings.id);
 
     if (error) {

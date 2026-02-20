@@ -4,6 +4,7 @@ import { useGame } from '../context/GameContext';
 import { SubmissionService } from '../services/submissionService';
 import { QuestionService } from '../services/questionService';
 import { calculateWinner, formatDate } from '../utils/winnerUtils';
+import WinnerOverlay from '../components/WinnerOverlay';
 
 // --- DYNAMIC MESSAGES ---
 const MESSAGES = {
@@ -42,7 +43,7 @@ const getSubmittedKey = (questionId, userName) => `submitted_${questionId}_${use
 const getNoSubmissionSeenKey = (questionId, userName) => `noSubmissionSeen_${questionId}_${userName?.trim().toLowerCase()}`;
 
 const QuestionPage = () => {
-    const { user, activeQuestion: contextActiveQuestion, showWinner, currentQuestionId } = useGame();
+    const { user, activeQuestion: contextActiveQuestion, showWinner, currentQuestionId, winnerName } = useGame();
     const navigate = useNavigate();
 
     // Local State
@@ -327,7 +328,13 @@ const QuestionPage = () => {
     };
 
 
+
     // --- RENDERERS ---
+
+    // FULLSCREEN WINNER OVERLAY — covers everything when admin enables it
+    if (showWinner && winnerName) {
+        return <WinnerOverlay winnerName={winnerName} />;
+    }
 
     if (!effectiveQuestion || viewState === 'none' || viewState === 'loading') {
         return (

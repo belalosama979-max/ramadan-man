@@ -13,6 +13,7 @@ export const GameProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [showWinner, setShowWinner] = useState(false);
   const [currentQuestionId, setCurrentQuestionId] = useState(null);
+  const [winnerName, setWinnerName] = useState(null);
 
   // Session management
   const [sessionId, setSessionId] = useState(null);
@@ -45,6 +46,7 @@ export const GameProvider = ({ children }) => {
         const settings = await GameSettingsService.getSettings();
         setShowWinner(settings.showWinner);
         setCurrentQuestionId(settings.currentQuestionId);
+        setWinnerName(settings.winnerName);
       } catch (error) {
         console.error("Failed to check game settings:", error);
       }
@@ -53,7 +55,7 @@ export const GameProvider = ({ children }) => {
     checkActiveQuestion();
     checkSettings();
     const questionInterval = setInterval(checkActiveQuestion, 60000);
-    const settingsInterval = setInterval(checkSettings, 10000); // Poll settings every 10s
+    const settingsInterval = setInterval(checkSettings, 5000); // Poll settings every 5s for winner reactivity
 
     setLoading(false);
     return () => {
@@ -165,6 +167,7 @@ export const GameProvider = ({ children }) => {
       loading,
       showWinner,
       currentQuestionId,
+      winnerName,
       sessionId,
     }}>
       {children}
