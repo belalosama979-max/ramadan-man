@@ -35,8 +35,10 @@ const getRandomMessage = (type) => {
 };
 
 // --- LOCALSTORAGE HELPERS ---
+// submitted_ : fast restore of active-question UI after refresh
+// noSubmissionSeen_ : marks that a non-submitter has already seen the "no answer" card
 const getSubmittedKey = (questionId, userName) => `submitted_${questionId}_${userName?.trim().toLowerCase()}`;
-const getResultSeenKey = (questionId, userName) => `resultSeen_${questionId}_${userName?.trim().toLowerCase()}`;
+const getNoSubmissionSeenKey = (questionId, userName) => `noSubmissionSeen_${questionId}_${userName?.trim().toLowerCase()}`;
 
 const QuestionPage = () => {
     const { user, activeQuestion: contextActiveQuestion } = useGame();
@@ -92,11 +94,16 @@ const QuestionPage = () => {
                     setLocalQuestion(currentQ);
                     setViewState('active');
                 } else if (recentlyEndedQ && user) {
-                    // Check if the user already saw the result for this ended question
-                    const seenKey = getResultSeenKey(recentlyEndedQ.id, user);
-                    const alreadySeen = localStorage.getItem(seenKey);
-                    if (!alreadySeen) {
-                        // Show feedback for the first time
+                    // Check Supabase: has the user already viewed their result?
+                    const submission = await SubmissionService.getUserSubmission(recentlyEndedQ.id, user);
+                    // submission === null means no answer; resultViewed check handles re-visit
+                    const alreadyViewed = submission
+                        ? submission.resultViewed === true
+                        // No submission row: use localStorage to avoid infinite re-show
+                        : !!localStorage.getItem(getNoSubmissionSeenKey(recentlyEndedQ.id, user));
+
+                    if (!alreadyViewed) {
+                        // First time viewing — show feedback
                         setLocalQuestion(recentlyEndedQ);
                         setViewState('ended');
                     } else if (nextQ) {
@@ -162,30 +169,34 @@ const QuestionPage = () => {
     useEffect(() => {
         if (viewState !== 'ended' || !effectiveQuestion || !user) return;
 
-        // If already seen, skip (safety check — determineState should handle this)
-        const seenKey = getResultSeenKey(effectiveQuestion.id, user);
-        if (localStorage.getItem(seenKey)) {
-            setViewState('none');
-            return;
-        }
-
         const fetchFeedback = async () => {
             setFeedbackLoading(true);
             try {
                 const submission = await SubmissionService.getUserSubmission(effectiveQuestion.id, user);
+
+                // Safety: if already viewed (e.g., race condition), skip to none
+                if (submission?.resultViewed === true) {
+                    setViewState('none');
+                    return;
+                }
+
                 if (!submission) {
                     setFeedbackResult('none');
+                    // No DB row — store seen flag in localStorage
+                    localStorage.setItem(getNoSubmissionSeenKey(effectiveQuestion.id, user), 'true');
                 } else if (submission.isCorrect) {
                     setFeedbackResult('correct');
                 } else {
                     setFeedbackResult('incorrect');
                 }
-                // Mark as seen so next refresh goes to 'none'
-                localStorage.setItem(seenKey, 'true');
+
+                // Mark as viewed in Supabase (once, cross-device) — only if a submission exists
+                if (submission?.id) {
+                    SubmissionService.markResultViewed(submission.id);
+                }
             } catch (err) {
                 console.error('Error fetching feedback:', err);
                 setFeedbackResult('none');
-                localStorage.setItem(seenKey, 'true');
             } finally {
                 setFeedbackLoading(false);
             }

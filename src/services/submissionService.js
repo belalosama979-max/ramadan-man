@@ -9,6 +9,7 @@ import { supabase } from '../lib/supabaseClient';
  *   normalizedName: string, // Lowercase, trimmed for uniqueness check
  *   answer: string,
  *   isCorrect: boolean,
+ *   resultViewed: boolean,   // true once user has seen their result post-question
  *   submittedAt: ISOString
  * }
  */
@@ -114,6 +115,23 @@ export const SubmissionService = {
       }
 
       return data ? mapSubmission(data) : null;
+  },
+
+  /**
+   * Mark a submission's result as viewed. Called once when the user sees their result.
+   * Only updates the result_viewed flag — no other data is modified.
+   */
+  markResultViewed: async (submissionId) => {
+      if (!submissionId) return;
+
+      const { error } = await supabase
+        .from('submissions')
+        .update({ result_viewed: true })
+        .eq('id', submissionId);
+
+      if (error) {
+          console.error('Error marking result as viewed:', error);
+      }
   }
 };
 
@@ -125,5 +143,6 @@ const mapSubmission = (s) => ({
     normalizedName: s.normalized_name,
     answer: s.answer,
     isCorrect: s.is_correct,
+    resultViewed: s.result_viewed ?? false,
     submittedAt: s.submitted_at
 });
