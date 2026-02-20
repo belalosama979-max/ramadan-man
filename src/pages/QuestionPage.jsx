@@ -34,6 +34,10 @@ const getRandomMessage = (type) => {
     return msgs[Math.floor(Math.random() * msgs.length)];
 };
 
+// --- LOCALSTORAGE HELPERS ---
+const getSubmittedKey = (questionId, userName) => `submitted_${questionId}_${userName?.trim().toLowerCase()}`;
+const getResultSeenKey = (questionId, userName) => `resultSeen_${questionId}_${userName?.trim().toLowerCase()}`;
+
 const QuestionPage = () => {
     const { user, activeQuestion: contextActiveQuestion } = useGame();
     const navigate = useNavigate();
@@ -68,7 +72,7 @@ const QuestionPage = () => {
                  return;
             }
 
-            // If no context question, check schedule for UPCOMING or manual ACTIVE transition
+            // If no context question, check schedule for UPCOMING, ACTIVE, or recently ENDED
             try {
                 const schedule = await QuestionService.getSchedule();
                 const now = new Date();
@@ -79,9 +83,28 @@ const QuestionPage = () => {
                 // Find potential active question that Context missed (or during transition)
                 const currentQ = schedule.find(q => new Date(q.startTime) <= now && new Date(q.endTime) > now);
 
+                // Find most recently ended question (ended within the last 24h)
+                const recentlyEndedQ = schedule
+                    .filter(q => new Date(q.endTime) <= now && (now - new Date(q.endTime)) < 86400000)
+                    .sort((a, b) => new Date(b.endTime) - new Date(a.endTime))[0];
+
                 if (currentQ) {
                     setLocalQuestion(currentQ);
                     setViewState('active');
+                } else if (recentlyEndedQ && user) {
+                    // Check if the user already saw the result for this ended question
+                    const seenKey = getResultSeenKey(recentlyEndedQ.id, user);
+                    const alreadySeen = localStorage.getItem(seenKey);
+                    if (!alreadySeen) {
+                        // Show feedback for the first time
+                        setLocalQuestion(recentlyEndedQ);
+                        setViewState('ended');
+                    } else if (nextQ) {
+                        setLocalQuestion(nextQ);
+                        setViewState('upcoming');
+                    } else {
+                        setViewState('none');
+                    }
                 } else if (nextQ) {
                     setLocalQuestion(nextQ);
                     setViewState('upcoming');
@@ -96,7 +119,7 @@ const QuestionPage = () => {
 
         determineState();
         // Poll briefly to keep sync if needed, but the Countdown engine handles the main transition
-    }, [contextActiveQuestion]);
+    }, [contextActiveQuestion, user]);
 
 
     // 2. MESSAGE ROTATION
@@ -114,9 +137,22 @@ const QuestionPage = () => {
             return;
         }
         if (effectiveQuestion && viewState === 'active') {
+            // Check localStorage first for instant restore
+            const submittedKey = getSubmittedKey(effectiveQuestion.id, user);
+            const localFlag = localStorage.getItem(submittedKey);
+            if (localFlag) {
+                setHasSubmitted(true);
+                setSubmissionStatus('submitted');
+                return;
+            }
+            // Fallback: check DB
             SubmissionService.hasUserAnswered(effectiveQuestion.id, user).then(submitted => {
                 setHasSubmitted(submitted);
-                if (submitted) setSubmissionStatus('submitted');
+                if (submitted) {
+                    setSubmissionStatus('submitted');
+                    // Persist to localStorage so refresh doesn't break
+                    localStorage.setItem(submittedKey, 'true');
+                }
             });
         }
     }, [effectiveQuestion, user, navigate, viewState]);
@@ -125,6 +161,13 @@ const QuestionPage = () => {
     // 3.5 FETCH FEEDBACK WHEN ENDED
     useEffect(() => {
         if (viewState !== 'ended' || !effectiveQuestion || !user) return;
+
+        // If already seen, skip (safety check — determineState should handle this)
+        const seenKey = getResultSeenKey(effectiveQuestion.id, user);
+        if (localStorage.getItem(seenKey)) {
+            setViewState('none');
+            return;
+        }
 
         const fetchFeedback = async () => {
             setFeedbackLoading(true);
@@ -137,9 +180,12 @@ const QuestionPage = () => {
                 } else {
                     setFeedbackResult('incorrect');
                 }
+                // Mark as seen so next refresh goes to 'none'
+                localStorage.setItem(seenKey, 'true');
             } catch (err) {
                 console.error('Error fetching feedback:', err);
                 setFeedbackResult('none');
+                localStorage.setItem(seenKey, 'true');
             } finally {
                 setFeedbackLoading(false);
             }
@@ -231,6 +277,8 @@ const QuestionPage = () => {
             setSubmissionStatus('submitted');
             setHasSubmitted(true);
             setSubmissionMessage('تم استلام إجابتك بنجاح! بالتوفيق.');
+            // Persist to localStorage
+            localStorage.setItem(getSubmittedKey(effectiveQuestion.id, user), 'true');
         } catch (error) {
             setSubmissionStatus('error');
             setSubmissionMessage(error.message);
