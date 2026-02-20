@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { QuestionService } from '../services/questionService';
 import { SubmissionService } from '../services/submissionService';
+import { GameSettingsService } from '../services/gameSettingsService';
 import { calculateWinner, formatDate } from '../utils/winnerUtils';
 import { triggerConfetti } from '../utils/confettiUtils';
 
@@ -9,6 +10,8 @@ const AdminPage = () => {
     const [selectedQuestionId, setSelectedQuestionId] = useState(null);
     const [submissions, setSubmissions] = useState([]);
     const [newQuestion, setNewQuestion] = useState({ text: '', correctAnswer: '', startTime: '', endTime: '' });
+    const [showWinner, setShowWinner] = useState(false);
+    const [winnerToggleLoading, setWinnerToggleLoading] = useState(false);
     
     // Auth State
     const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -37,7 +40,7 @@ const AdminPage = () => {
             const loadedQuestions = await QuestionService.getAll();
             setQuestions(loadedQuestions);
             
-            // Auto-select active questionnaire (Logic replicated in memory for UI efficiency)
+            // Auto-select active questionnaire
             const now = new Date();
             const active = loadedQuestions.find(q => {
                const start = new Date(q.startTime);
@@ -50,6 +53,10 @@ const AdminPage = () => {
             } else if (loadedQuestions.length > 0 && !selectedQuestionId) {
                 setSelectedQuestionId(loadedQuestions[0].id);
             }
+
+            // Fetch game settings
+            const settings = await GameSettingsService.getSettings();
+            setShowWinner(settings.showWinner);
         } catch (error) {
             console.error("Failed to load questions:", error);
         }
@@ -89,6 +96,11 @@ const AdminPage = () => {
             };
             
             await QuestionService.add(questionData);
+            
+            // Auto-reset show_winner for the new question
+            await GameSettingsService.setCurrentQuestion(null); // Will be set when question ends
+            setShowWinner(false);
+            
             setNewQuestion({ text: '', correctAnswer: '', startTime: '', endTime: '' });
             await refreshData();
             alert('تم إضافة السؤال بنجاح');
@@ -335,7 +347,37 @@ const AdminPage = () => {
                                 ))}
                             </select>
                          </div>
-                         <button onClick={refreshData} className="text-primary hover:text-primary-dark font-medium text-sm underline">تحديث البيانات ⟳</button>
+                         <div className="flex items-center gap-3">
+                             {/* Winner Board Toggle */}
+                             {!isQuestionActive && winner && (
+                                 <button
+                                     onClick={async () => {
+                                         setWinnerToggleLoading(true);
+                                         try {
+                                             // Set current_question_id so user side knows which question this winner is for
+                                             if (!showWinner) {
+                                                 await GameSettingsService.setCurrentQuestion(selectedQuestionId);
+                                             }
+                                             const newValue = await GameSettingsService.toggleShowWinner(showWinner);
+                                             setShowWinner(newValue);
+                                         } catch (e) {
+                                             console.error('Error toggling winner:', e);
+                                         } finally {
+                                             setWinnerToggleLoading(false);
+                                         }
+                                     }}
+                                     disabled={winnerToggleLoading}
+                                     className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm ${
+                                         showWinner
+                                             ? 'bg-red-100 text-red-700 hover:bg-red-200 border border-red-200'
+                                             : 'bg-green-100 text-green-700 hover:bg-green-200 border border-green-200'
+                                     } ${winnerToggleLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                 >
+                                     {winnerToggleLoading ? '...' : showWinner ? 'إخفاء لوحة الفائز' : 'عرض لوحة الفائز'}
+                                 </button>
+                             )}
+                             <button onClick={refreshData} className="text-primary hover:text-primary-dark font-medium text-sm underline">تحديث البيانات ⟳</button>
+                         </div>
                     </div>
 
                     {selectedQuestionId && (

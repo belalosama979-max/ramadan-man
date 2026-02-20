@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useGame } from '../context/GameContext';
 import { SubmissionService } from '../services/submissionService';
 import { QuestionService } from '../services/questionService';
+import { calculateWinner, formatDate } from '../utils/winnerUtils';
 
 // --- DYNAMIC MESSAGES ---
 const MESSAGES = {
@@ -41,7 +42,7 @@ const getSubmittedKey = (questionId, userName) => `submitted_${questionId}_${use
 const getNoSubmissionSeenKey = (questionId, userName) => `noSubmissionSeen_${questionId}_${userName?.trim().toLowerCase()}`;
 
 const QuestionPage = () => {
-    const { user, activeQuestion: contextActiveQuestion } = useGame();
+    const { user, activeQuestion: contextActiveQuestion, showWinner, currentQuestionId } = useGame();
     const navigate = useNavigate();
 
     // Local State
@@ -58,8 +59,9 @@ const QuestionPage = () => {
     const [hasSubmitted, setHasSubmitted] = useState(false);
 
     // Feedback State (post-question)
-    const [feedbackResult, setFeedbackResult] = useState(null); // 'correct', 'incorrect', 'none'
+    const [feedbackResult, setFeedbackResult] = useState(null);   // 'correct' | 'incorrect' | 'none'
     const [feedbackLoading, setFeedbackLoading] = useState(false);
+    const [winner, setWinner] = useState(null);                    // Winner object for user-side display
 
     // Determines the question object to use (Context takes precedence if active, otherwise local)
     const effectiveQuestion = contextActiveQuestion || localQuestion;
@@ -205,6 +207,26 @@ const QuestionPage = () => {
         fetchFeedback();
     }, [viewState, effectiveQuestion, user]);
 
+    // 3.6 FETCH WINNER WHEN ADMIN ENABLES WINNER BOARD
+    useEffect(() => {
+        if (!showWinner || !currentQuestionId) {
+            setWinner(null);
+            return;
+        }
+
+        const fetchWinner = async () => {
+            try {
+                const subs = await SubmissionService.getByQuestionId(currentQuestionId);
+                const w = calculateWinner(subs);
+                setWinner(w);
+            } catch (err) {
+                console.error('Error fetching winner:', err);
+                setWinner(null);
+            }
+        };
+
+        fetchWinner();
+    }, [showWinner, currentQuestionId]);
 
     // 4. PREMIUM COUNTDOWN ENGINE
     useEffect(() => {
@@ -316,6 +338,18 @@ const QuestionPage = () => {
                     </div>
                     <h2 className="text-3xl font-bold text-primary-dark mb-4 tracking-tight">لا يوجد تحدي نشط حالياً</h2>
                     <p className="text-lg text-primary/70 font-medium">ترقبوا السؤال القادم!</p>
+
+                    {/* Winner Board in idle state — admin may toggle it after user already saw feedback */}
+                    {showWinner && winner && (
+                        <div className="mt-8 p-8 rounded-2xl border-2 border-yellow-300 text-center animate-fade-in shadow-lg" style={{ background: 'linear-gradient(135deg, #FEF9C3, #FDE68A)' }}>
+                            <div className="text-5xl mb-3">🏆</div>
+                            <h3 className="text-2xl font-extrabold text-yellow-900 mb-2">الفائز</h3>
+                            <p className="text-3xl font-black text-yellow-800 mb-1">{winner.name}</p>
+                            <div className="inline-block bg-yellow-900/10 px-4 py-1 rounded-full mt-2">
+                                <p className="text-xs text-yellow-700 font-mono">{formatDate(winner.submittedAt)}</p>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         );
@@ -426,6 +460,18 @@ const QuestionPage = () => {
                                     </div>
                                     <h3 className="text-2xl font-bold text-gray-600 mb-2">لم تقم بإرسال إجابة</h3>
                                     <p className="text-gray-500 font-medium">حظاً موفقاً في السؤال القادم!</p>
+                                </div>
+                            )}
+
+                            {/* Winner Board — only if admin toggled it ON and question matches */}
+                            {showWinner && currentQuestionId === effectiveQuestion?.id && winner && (
+                                <div className="mt-8 p-8 rounded-2xl border-2 border-yellow-300 text-center animate-fade-in shadow-lg" style={{ background: 'linear-gradient(135deg, #FEF9C3, #FDE68A)' }}>
+                                    <div className="text-5xl mb-3">🏆</div>
+                                    <h3 className="text-2xl font-extrabold text-yellow-900 mb-2">الفائز</h3>
+                                    <p className="text-3xl font-black text-yellow-800 mb-1">{winner.name}</p>
+                                    <div className="inline-block bg-yellow-900/10 px-4 py-1 rounded-full mt-2">
+                                        <p className="text-xs text-yellow-700 font-mono">{formatDate(winner.submittedAt)}</p>
+                                    </div>
                                 </div>
                             )}
                         </div>
