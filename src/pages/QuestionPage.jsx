@@ -5,6 +5,7 @@ import { SubmissionService } from '../services/submissionService';
 import { QuestionService } from '../services/questionService';
 import { calculateWinner, formatDate } from '../utils/winnerUtils';
 import WinnerOverlay from '../components/WinnerOverlay';
+import StickerOverlay from '../components/StickerOverlay';
 
 // --- DYNAMIC MESSAGES ---
 const MESSAGES = {
@@ -63,6 +64,7 @@ const QuestionPage = () => {
     const [feedbackResult, setFeedbackResult] = useState(null);   // 'correct' | 'incorrect' | 'none'
     const [feedbackLoading, setFeedbackLoading] = useState(false);
     const [winner, setWinner] = useState(null);                    // Winner object for user-side display
+    const [showSticker, setShowSticker] = useState(false);          // Post-submission sticker overlay
 
     // Determines the question object to use (Context takes precedence if active, otherwise local)
     const effectiveQuestion = contextActiveQuestion || localQuestion;
@@ -310,6 +312,7 @@ const QuestionPage = () => {
             });
             setSubmissionStatus('submitted');
             setHasSubmitted(true);
+            setShowSticker(true); // Trigger sticker overlay
             setSubmissionMessage('تم استلام إجابتك بنجاح! بالتوفيق.');
             // Persist to localStorage
             localStorage.setItem(getSubmittedKey(effectiveQuestion.id, user), 'true');
@@ -335,6 +338,9 @@ const QuestionPage = () => {
     if (showWinner && winnerName) {
         return <WinnerOverlay winnerName={winnerName} />;
     }
+
+    // STICKER OVERLAY — rendered alongside content, not blocking
+    const stickerOverlayEl = <StickerOverlay trigger={showSticker} />;
 
     if (!effectiveQuestion || viewState === 'none' || viewState === 'loading') {
         return (
@@ -404,6 +410,7 @@ const QuestionPage = () => {
 
     return (
         <div className="w-full max-w-2xl animate-slide-up text-right relative">
+             {stickerOverlayEl}
              {/* Flash Overlay */}
              <div 
                 className={`fixed inset-0 bg-white z-50 pointer-events-none transition-opacity duration-500 ease-out ${isRevealing ? 'opacity-100' : 'opacity-0'}`}
