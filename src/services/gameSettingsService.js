@@ -36,7 +36,8 @@ export const GameSettingsService = {
     const { error } = await supabase
       .from('game_settings')
       .update({ show_winner: !currentValue })
-      .eq('id', 1);
+   .update({ show_winner: newValue })
+.not('id', 'is', null)
 
     if (error) {
       console.error('Error toggling show_winner:', error);
@@ -57,7 +58,16 @@ export const GameSettingsService = {
         current_question_id: questionId,
         show_winner: false,
       })
-      .eq('id', 1);
+     getSettings: async () => {
+  const { data, error } = await supabase
+    .from('game_settings')
+    .select('*')
+    .limit(1)
+    .single();
+
+  if (error) throw error;
+  return data;
+}
 
     if (error) {
       console.error('Error setting current question:', error);
