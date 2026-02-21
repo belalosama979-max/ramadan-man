@@ -12,6 +12,12 @@ const AdminPage = () => {
     const [newQuestion, setNewQuestion] = useState({ text: '', correctAnswer: '', startTime: '', endTime: '' });
     const [showWinner, setShowWinner] = useState(false);
     const [winnerToggleLoading, setWinnerToggleLoading] = useState(false);
+
+    // Live Time Editor State
+    const [editStartTime, setEditStartTime] = useState('');
+    const [editEndTime, setEditEndTime] = useState('');
+    const [timeUpdateLoading, setTimeUpdateLoading] = useState(false);
+    const [timeUpdateMsg, setTimeUpdateMsg] = useState('');
     
     // Auth State
     const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -110,6 +116,60 @@ const AdminPage = () => {
     };
 
     const activeQuestion = questions.find(q => q.id === selectedQuestionId);
+
+    // Sync time editor inputs when selected question changes
+    useEffect(() => {
+        if (activeQuestion) {
+            // Convert ISO to datetime-local format (YYYY-MM-DDTHH:mm)
+            const toLocal = (iso) => {
+                if (!iso) return '';
+                const d = new Date(iso);
+                const pad = (n) => String(n).padStart(2, '0');
+                return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+            };
+            setEditStartTime(toLocal(activeQuestion.startTime));
+            setEditEndTime(toLocal(activeQuestion.endTime));
+        } else {
+            setEditStartTime('');
+            setEditEndTime('');
+        }
+        setTimeUpdateMsg('');
+    }, [activeQuestion?.id, activeQuestion?.startTime, activeQuestion?.endTime]);
+
+    // Handle time update
+    const handleTimeUpdate = async (newStart, newEnd) => {
+        if (!activeQuestion) return;
+        setTimeUpdateLoading(true);
+        setTimeUpdateMsg('');
+        try {
+            const updated = await QuestionService.updateTime(
+                activeQuestion.id,
+                new Date(newStart).toISOString(),
+                new Date(newEnd).toISOString()
+            );
+            // Immediately patch local state to avoid flicker
+            setQuestions(prev => prev.map(q => q.id === updated.id ? updated : q));
+            await refreshData();
+            setTimeUpdateMsg('✅ تم تحديث الوقت بنجاح');
+        } catch (err) {
+            setTimeUpdateMsg(`❌ ${err.message}`);
+        } finally {
+            setTimeUpdateLoading(false);
+            setTimeout(() => setTimeUpdateMsg(''), 4000);
+        }
+    };
+
+    // Quick-add helper: adds duration (ms) to current editEndTime
+    const handleQuickAdd = (durationMs) => {
+        if (!editEndTime) return;
+        const newEnd = new Date(new Date(editEndTime).getTime() + durationMs);
+        const toLocal = (d) => {
+            const pad = (n) => String(n).padStart(2, '0');
+            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+        };
+        setEditEndTime(toLocal(newEnd));
+        handleTimeUpdate(editStartTime, newEnd.toISOString());
+    };
 
     // Derived stats
     const totalParticipants = submissions.length;
@@ -381,6 +441,7 @@ const AdminPage = () => {
                     </div>
 
                     {selectedQuestionId && (
+                        <>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="bg-blue-50 p-6 rounded-3xl border border-blue-100 text-center">
                                 <h4 className="text-blue-800 font-bold mb-2">المشاركين</h4>
@@ -437,6 +498,89 @@ const AdminPage = () => {
                                 )}
                             </div>
                         </div>
+
+                        {/* 🕐 Live Time Editor */}
+                        <div className="bg-white p-6 rounded-3xl shadow-sm border border-primary/5">
+                            <h3 className="text-lg font-bold text-primary-dark mb-4 flex items-center gap-2">
+                                <span>🕐</span> تعديل وقت السؤال
+                            </h3>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-2">وقت البداية</label>
+                                    <input
+                                        type="datetime-local"
+                                        className={`w-full p-3 rounded-xl border-2 transition-colors text-sm ${
+                                            isQuestionActive
+                                                ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
+                                                : 'border-gray-100 focus:border-primary bg-white'
+                                        }`}
+                                        value={editStartTime}
+                                        onChange={e => setEditStartTime(e.target.value)}
+                                        disabled={isQuestionActive}
+                                    />
+                                    {isQuestionActive && (
+                                        <p className="text-xs text-amber-600 mt-1 font-medium">⚠️ لا يمكن تعديل وقت البداية أثناء تشغيل السؤال</p>
+                                    )}
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-2">وقت الانتهاء</label>
+                                    <input
+                                        type="datetime-local"
+                                        className="w-full p-3 rounded-xl border-2 border-gray-100 focus:border-primary transition-colors text-sm bg-white"
+                                        value={editEndTime}
+                                        onChange={e => setEditEndTime(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Quick-add buttons */}
+                            <div className="flex flex-wrap gap-2 mb-4">
+                                <span className="text-xs text-gray-500 font-medium self-center ml-1">تمديد سريع:</span>
+                                <button
+                                    type="button"
+                                    onClick={() => handleQuickAdd(30 * 1000)}
+                                    disabled={timeUpdateLoading}
+                                    className="px-4 py-2 text-xs font-bold bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition disabled:opacity-50"
+                                >
+                                    +30 ثانية
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleQuickAdd(60 * 1000)}
+                                    disabled={timeUpdateLoading}
+                                    className="px-4 py-2 text-xs font-bold bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition disabled:opacity-50"
+                                >
+                                    +1 دقيقة
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleQuickAdd(2 * 60 * 1000)}
+                                    disabled={timeUpdateLoading}
+                                    className="px-4 py-2 text-xs font-bold bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition disabled:opacity-50"
+                                >
+                                    +2 دقيقة
+                                </button>
+                            </div>
+
+                            {/* Update button + status message */}
+                            <div className="flex items-center gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => handleTimeUpdate(editStartTime, editEndTime)}
+                                    disabled={timeUpdateLoading}
+                                    className="px-6 py-3 bg-[#14532D] hover:bg-[#0F3D2E] text-white font-bold rounded-xl transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                                >
+                                    {timeUpdateLoading ? 'جاري التحديث...' : 'تحديث الوقت'}
+                                </button>
+                                {timeUpdateMsg && (
+                                    <span className={`text-sm font-medium animate-fade-in ${timeUpdateMsg.startsWith('✅') ? 'text-green-600' : 'text-red-600'}`}>
+                                        {timeUpdateMsg}
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                        </>
                     )}
 
                     {/* Participants Table */}

@@ -180,6 +180,71 @@ export const QuestionService = {
       endTime: data.end_time,
       createdAt: data.created_at
     };
+  },
+
+
+  // 🔹 Update start_time and/or end_time of a question (Live Time Editing)
+  updateTime: async (questionId, newStartTime, newEndTime) => {
+
+    // 1. Validate inputs
+    if (!newStartTime || !newEndTime) {
+      throw new Error("يجب تحديد وقت البداية والنهاية.");
+    }
+
+    const start = new Date(newStartTime);
+    const end = new Date(newEndTime);
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      throw new Error("صيغة الوقت غير صالحة.");
+    }
+
+    if (end <= start) {
+      throw new Error("وقت الانتهاء يجب أن يكون بعد وقت البداية.");
+    }
+
+    // 2. Race-condition guard: fetch current state from DB
+    const { data: current, error: fetchError } = await supabase
+      .from('questions')
+      .select('end_time')
+      .eq('id', questionId)
+      .single();
+
+    if (fetchError) throw fetchError;
+
+    if (!current) {
+      throw new Error("السؤال غير موجود.");
+    }
+
+    // Reject if question has already ended
+    const currentEnd = new Date(current.end_time);
+    const now = new Date();
+    if (currentEnd < now) {
+      throw new Error("لا يمكن تعديل وقت سؤال منتهٍ.");
+    }
+
+    // 3. Perform update
+    const { data, error } = await supabase
+      .from('questions')
+      .update({
+        start_time: start.toISOString(),
+        end_time: end.toISOString(),
+      })
+      .eq('id', questionId)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return {
+      id: data.id,
+      text: data.text,
+      type: data.type || 'text',
+      options: data.options || null,
+      correctAnswer: data.correct_answer,
+      startTime: data.start_time,
+      endTime: data.end_time,
+      createdAt: data.created_at
+    };
   }
 };
 

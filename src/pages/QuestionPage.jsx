@@ -232,12 +232,20 @@ const QuestionPage = () => {
     }, [showWinner, currentQuestionId]);
 
     // 4. PREMIUM COUNTDOWN ENGINE
+    // Dependencies include endTime so the interval re-creates cleanly on time edits
+    const effectiveEndTime = effectiveQuestion?.endTime;
+    const effectiveStartTime = effectiveQuestion?.startTime;
+
     useEffect(() => {
         if (!effectiveQuestion || (viewState !== 'upcoming' && viewState !== 'active')) return;
 
         const targetDate = viewState === 'upcoming' 
-            ? new Date(effectiveQuestion.startTime) 
-            : new Date(effectiveQuestion.endTime);
+            ? new Date(effectiveStartTime) 
+            : new Date(effectiveEndTime);
+
+        // Initial set
+        const now = new Date();
+        setTimeLeft(Math.max(0, targetDate - now));
 
         const timer = setInterval(() => {
             const now = new Date();
@@ -250,8 +258,6 @@ const QuestionPage = () => {
                 // Auto-transition logic
                 if (viewState === 'upcoming') {
                     setViewState('active');
-                    // Force refresh to ensure strictly consistent state logic
-                    // logic handled by next render cycle picking up 'active' viewState
                 } else if (viewState === 'active') {
                     setViewState('ended');
                 }
@@ -260,12 +266,8 @@ const QuestionPage = () => {
             }
         }, 1000);
 
-        // Initial set
-        const now = new Date();
-        setTimeLeft(Math.max(0, targetDate - now));
-
         return () => clearInterval(timer);
-    }, [effectiveQuestion, viewState]);
+    }, [effectiveEndTime, effectiveStartTime, viewState]);
 
     // 5. CINEMATIC REVEAL EFFECT
     const [isRevealing, setIsRevealing] = useState(false);

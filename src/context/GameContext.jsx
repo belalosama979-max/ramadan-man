@@ -30,7 +30,11 @@ export const GameProvider = ({ children }) => {
       setSessionId(savedSessionId);
     }
 
-    // Check for active question
+    setLoading(false);
+  }, []);
+
+  // Check for active question — adaptive polling (5s when active, 60s when idle)
+  useEffect(() => {
     const checkActiveQuestion = async () => {
       try {
         const question = await QuestionService.getActive();
@@ -40,7 +44,14 @@ export const GameProvider = ({ children }) => {
       }
     };
 
-    // Check game settings
+    checkActiveQuestion();
+    const intervalMs = activeQuestion ? 5000 : 60000;
+    const questionInterval = setInterval(checkActiveQuestion, intervalMs);
+    return () => clearInterval(questionInterval);
+  }, [activeQuestion !== null]); // re-subscribe when active/idle status flips
+
+  // Check game settings — poll every 5s for winner reactivity
+  useEffect(() => {
     const checkSettings = async () => {
       try {
         const settings = await GameSettingsService.getSettings();
@@ -52,17 +63,11 @@ export const GameProvider = ({ children }) => {
       }
     };
 
-    checkActiveQuestion();
     checkSettings();
-    const questionInterval = setInterval(checkActiveQuestion, 60000);
-    const settingsInterval = setInterval(checkSettings, 5000); // Poll settings every 5s for winner reactivity
-
-    setLoading(false);
-    return () => {
-      clearInterval(questionInterval);
-      clearInterval(settingsInterval);
-    };
+    const settingsInterval = setInterval(checkSettings, 5000);
+    return () => clearInterval(settingsInterval);
   }, []);
+
 
   // --- HEARTBEAT MANAGEMENT ---
   // Start heartbeat when sessionId is set, stop when cleared
