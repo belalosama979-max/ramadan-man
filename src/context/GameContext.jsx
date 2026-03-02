@@ -14,6 +14,7 @@ export const GameProvider = ({ children }) => {
   const [showWinner, setShowWinner] = useState(false);
   const [currentQuestionId, setCurrentQuestionId] = useState(null);
   const [winnerName, setWinnerName] = useState(null);
+  const [topWinners, setTopWinners] = useState(null);
 
   // Session management
   const [sessionId, setSessionId] = useState(null);
@@ -58,6 +59,7 @@ export const GameProvider = ({ children }) => {
         setShowWinner(settings.showWinner);
         setCurrentQuestionId(settings.currentQuestionId);
         setWinnerName(settings.winnerName);
+        setTopWinners(settings.topWinners);
       } catch (error) {
         console.error("Failed to check game settings:", error);
       }
@@ -173,6 +175,7 @@ export const GameProvider = ({ children }) => {
       showWinner,
       currentQuestionId,
       winnerName,
+      topWinners,
       sessionId,
     }}>
       {children}

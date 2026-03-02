@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { QuestionService } from '../services/questionService';
 import { SubmissionService } from '../services/submissionService';
 import { GameSettingsService } from '../services/gameSettingsService';
-import { calculateWinner, formatDate } from '../utils/winnerUtils';
+import { calculateTop3Winners, calculateWinner, formatDate } from '../utils/winnerUtils';
 import { triggerConfetti } from '../utils/confettiUtils';
 
 const AdminPage = () => {
@@ -197,17 +197,17 @@ const AdminPage = () => {
     const isQuestionActive = activeQuestion ? new Date(activeQuestion.endTime) > currentTime : false;
     
     // Only calculate winner if question is NOT active (expired)
-    const winner = useMemo(() => {
+    const topWinners = useMemo(() => {
         if (!activeQuestion || isQuestionActive) return null;
-        return calculateWinner(submissions);
+        return calculateTop3Winners(submissions);
     }, [submissions, activeQuestion, isQuestionActive]);
 
     // Trigger confetti when winner is revealed
     useEffect(() => {
-        if (winner) {
+        if (topWinners && Object.keys(topWinners).length > 0) {
             triggerConfetti();
         }
-    }, [winner]);
+    }, [topWinners]);
 
 
     if (!isAuthenticated) {
@@ -433,7 +433,7 @@ const AdminPage = () => {
                          </div>
                          <div className="flex items-center gap-3">
                              {/* Winner Board Toggle */}
-                             {!isQuestionActive && winner && (
+                             {!isQuestionActive && topWinners && Object.keys(topWinners).length > 0 && (
                                  <button
                                      onClick={async () => {
                                          setWinnerToggleLoading(true);
@@ -442,7 +442,8 @@ const AdminPage = () => {
                                              if (!showWinner) {
                                                  await GameSettingsService.setCurrentQuestion(selectedQuestionId);
                                              }
-                                             const newValue = await GameSettingsService.toggleShowWinner(showWinner, winner?.name || null);
+                                             const firstWinnerName = topWinners?.first?.name || null;
+                                             const newValue = await GameSettingsService.toggleShowWinner(showWinner, firstWinnerName, topWinners);
                                              setShowWinner(newValue);
                                          } catch (e) {
                                              console.error('Error toggling winner:', e);
@@ -477,19 +478,45 @@ const AdminPage = () => {
                             </div>
                             
                             {/* Winner Card */}
-                            <div className={`p-8 rounded-3xl border-2 text-center transition-all duration-500 shadow-lg ${winner ? 'bg-gradient-to-br from-[#D4AF37] to-[#B8860B] border-[#FCD34D] text-white shadow-yellow-900/20' : 'bg-white border-gray-100'}`}>
-                                <h4 className={`${winner ? 'text-white/90' : 'text-gray-400'} text-sm font-bold uppercase tracking-widest mb-4`}>
-                                    فائز اليوم
+                            <div className={`col-span-1 md:col-span-3 lg:col-span-1 p-8 rounded-3xl border-2 transition-all duration-500 shadow-lg ${topWinners && Object.keys(topWinners).length > 0 ? 'bg-gradient-to-br from-[#D4AF37] to-[#B8860B] border-[#FCD34D] text-white shadow-yellow-900/20' : 'bg-white border-gray-100 text-center'}`}>
+                                <h4 className={`${topWinners && Object.keys(topWinners).length > 0 ? 'text-white/90 text-center' : 'text-gray-400'} text-sm font-bold uppercase tracking-widest mb-6`}>
+                                    أسرع الإجابات الصحيحة
                                 </h4>
-                                {winner ? (
-                                    <div className="animate-slide-up flex flex-col items-center">
-                                        <div className="text-5xl mb-3 drop-shadow-md filter">
-                                            🏆
-                                        </div>
-                                        <p className="text-3xl font-extrabold text-white drop-shadow-sm mb-1">{winner.name}</p>
-                                        <div className="bg-black/20 px-4 py-1 rounded-full backdrop-blur-sm mt-2">
-                                            <p className="text-xs text-white/80 font-mono tracking-wider">{formatDate(winner.submittedAt)}</p>
-                                        </div>
+                                {topWinners && Object.keys(topWinners).length > 0 ? (
+                                    <div className="animate-slide-up flex flex-col gap-4">
+                                        {topWinners.first && (
+                                            <div className="flex items-center justify-between bg-black/10 p-3 rounded-2xl backdrop-blur-sm">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="text-3xl drop-shadow-md filter">🥇</div>
+                                                    <div>
+                                                        <p className="text-lg font-extrabold text-white drop-shadow-sm">{topWinners.first.name}</p>
+                                                        <p className="text-xs text-white/80 font-mono tracking-wider">{topWinners.first.responseTimeSeconds} sec</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {topWinners.second && (
+                                            <div className="flex items-center justify-between bg-black/10 p-3 rounded-2xl backdrop-blur-sm">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="text-2xl drop-shadow-md filter">🥈</div>
+                                                    <div>
+                                                        <p className="text-md font-bold text-white drop-shadow-sm">{topWinners.second.name}</p>
+                                                        <p className="text-xs text-white/80 font-mono tracking-wider">{topWinners.second.responseTimeSeconds} sec</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {topWinners.third && (
+                                            <div className="flex items-center justify-between bg-black/10 p-3 rounded-2xl backdrop-blur-sm">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="text-xl drop-shadow-md filter">🥉</div>
+                                                    <div>
+                                                        <p className="text-sm font-bold text-white drop-shadow-sm">{topWinners.third.name}</p>
+                                                        <p className="text-xs text-white/80 font-mono tracking-wider">{topWinners.third.responseTimeSeconds} sec</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 ) : (
                                     <div className="flex flex-col items-center justify-center min-h-[100px]">
@@ -625,11 +652,18 @@ const AdminPage = () => {
                                             <td colSpan="4" className="p-12 text-center text-gray-400 font-medium">لا توجد مشاركات لهذا السؤال</td>
                                         </tr>
                                     ) : (
-                                        submissions.sort((a,b) => new Date(a.submittedAt) - new Date(b.submittedAt)).map((sub) => (
-                                            <tr key={sub.id} className={`hover:bg-gray-50/80 transition-colors ${winner && winner.id === sub.id ? 'bg-amber-50/60' : ''}`}>
+                                        submissions.sort((a,b) => new Date(a.submittedAt) - new Date(b.submittedAt)).map((sub) => {
+                                            const isFirst = topWinners?.first?.id === sub.id;
+                                            const isSecond = topWinners?.second?.id === sub.id;
+                                            const isThird = topWinners?.third?.id === sub.id;
+                                            const isWinner = isFirst || isSecond || isThird;
+                                            return (
+                                            <tr key={sub.id} className={`hover:bg-gray-50/80 transition-colors ${isWinner ? 'bg-amber-50/60' : ''}`}>
                                                 <td className="p-5 font-bold text-gray-800">
                                                     {sub.name}
-                                                    {winner && winner.id === sub.id && <span className="mr-3 text-xs bg-accent text-white px-2.5 py-1 rounded-full shadow-sm">👑 فائز</span>}
+                                                    {isFirst && <span className="mr-3 text-xs bg-yellow-500 text-white px-2.5 py-1 rounded-full shadow-sm">🥇 الأول</span>}
+                                                    {isSecond && <span className="mr-3 text-xs bg-gray-400 text-white px-2.5 py-1 rounded-full shadow-sm">🥈 الثاني</span>}
+                                                    {isThird && <span className="mr-3 text-xs bg-amber-700 text-white px-2.5 py-1 rounded-full shadow-sm">🥉 الثالث</span>}
                                                 </td>
                                                 <td className="p-5 text-gray-600 font-medium">{sub.answer}</td>
                                                 <td className="p-5">
@@ -642,10 +676,11 @@ const AdminPage = () => {
                                                     )}
                                                 </td>
                                                 <td className="p-5 text-gray-400 text-sm font-mono" dir="ltr">
-                                                    {new Date(sub.submittedAt).toLocaleTimeString('en-US')}
+                                                    {sub.responseTimeSeconds != null ? `${sub.responseTimeSeconds}s` : new Date(sub.submittedAt).toLocaleTimeString('en-US')}
                                                 </td>
                                             </tr>
-                                        ))
+                                            )
+                                        })
                                     )}
                                 </tbody>
                             </table>

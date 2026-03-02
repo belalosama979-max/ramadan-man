@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useGame } from '../context/GameContext';
 import { SubmissionService } from '../services/submissionService';
 import { QuestionService } from '../services/questionService';
-import { calculateWinner, formatDate } from '../utils/winnerUtils';
+import { calculateTop3Winners, formatDate } from '../utils/winnerUtils';
 import WinnerOverlay from '../components/WinnerOverlay';
 import StickerOverlay from '../components/StickerOverlay';
 
@@ -44,7 +44,7 @@ const getSubmittedKey = (questionId, userName) => `submitted_${questionId}_${use
 const getNoSubmissionSeenKey = (questionId, userName) => `noSubmissionSeen_${questionId}_${userName?.trim().toLowerCase()}`;
 
 const QuestionPage = () => {
-    const { user, activeQuestion: contextActiveQuestion, showWinner, currentQuestionId, winnerName } = useGame();
+    const { user, activeQuestion: contextActiveQuestion, showWinner, currentQuestionId, winnerName, topWinners: contextTopWinners } = useGame();
     const navigate = useNavigate();
 
     // Local State
@@ -67,7 +67,7 @@ const QuestionPage = () => {
     // Feedback State (post-question)
     const [feedbackResult, setFeedbackResult] = useState(null);   // 'correct' | 'incorrect' | 'none'
     const [feedbackLoading, setFeedbackLoading] = useState(false);
-    const [winner, setWinner] = useState(null);                    // Winner object for user-side display
+    const [topWinners, setTopWinners] = useState(null);                    // Winner object for user-side display
     const [showSticker, setShowSticker] = useState(false);          // Post-submission sticker overlay
 
     // Determines the question object to use (Context takes precedence if active, otherwise local)
@@ -251,18 +251,18 @@ const QuestionPage = () => {
     // 3.6 FETCH WINNER WHEN ADMIN ENABLES WINNER BOARD
     useEffect(() => {
         if (!showWinner || !currentQuestionId) {
-            setWinner(null);
+            setTopWinners(null);
             return;
         }
 
         const fetchWinner = async () => {
             try {
                 const subs = await SubmissionService.getByQuestionId(currentQuestionId);
-                const w = calculateWinner(subs);
-                setWinner(w);
+                const w = calculateTop3Winners(subs);
+                setTopWinners(w);
             } catch (err) {
                 console.error('Error fetching winner:', err);
-                setWinner(null);
+                setTopWinners(null);
             }
         };
 
@@ -379,8 +379,8 @@ const QuestionPage = () => {
     // --- RENDERERS ---
 
     // FULLSCREEN WINNER OVERLAY — covers everything when admin enables it
-    if (showWinner && winnerName) {
-        return <WinnerOverlay winnerName={winnerName} />;
+    if (showWinner && contextTopWinners && Object.keys(contextTopWinners).length > 0) {
+        return <WinnerOverlay topWinners={contextTopWinners} />;
     }
 
     // STICKER OVERLAY — rendered alongside content, not blocking
@@ -397,13 +397,28 @@ const QuestionPage = () => {
                     <p className="text-lg text-primary/70 font-medium">ترقبوا السؤال القادم!</p>
 
                     {/* Winner Board in idle state — admin may toggle it after user already saw feedback */}
-                    {showWinner && winner && (
-                        <div className="mt-8 p-8 rounded-2xl border-2 border-yellow-300 text-center animate-fade-in shadow-lg" style={{ background: 'linear-gradient(135deg, #FEF9C3, #FDE68A)' }}>
-                            <div className="text-5xl mb-3">🏆</div>
-                            <h3 className="text-2xl font-extrabold text-yellow-900 mb-2">الفائز</h3>
-                            <p className="text-3xl font-black text-yellow-800 mb-1">{winner.name}</p>
-                            <div className="inline-block bg-yellow-900/10 px-4 py-1 rounded-full mt-2">
-                                <p className="text-xs text-yellow-700 font-mono">{formatDate(winner.submittedAt)}</p>
+                    {showWinner && topWinners && Object.keys(topWinners).length > 0 && (
+                        <div className="mt-8 p-6 rounded-2xl border-2 border-yellow-300 animate-fade-in shadow-lg text-right" style={{ background: 'linear-gradient(135deg, #FEF9C3, #FDE68A)' }}>
+                            <h3 className="text-xl font-extrabold text-yellow-900 mb-4 text-center">🏆 أسرع الإجابات الصحيحة</h3>
+                            <div className="flex flex-col gap-3">
+                                {topWinners.first && (
+                                    <div className="flex justify-between items-center bg-white/50 p-3 rounded-xl">
+                                        <div className="flex items-center gap-2"><span className="text-2xl">🥇</span><span className="font-bold text-yellow-900">{topWinners.first.name}</span></div>
+                                        <span className="font-mono text-sm text-yellow-800">{topWinners.first.responseTimeSeconds}s</span>
+                                    </div>
+                                )}
+                                {topWinners.second && (
+                                    <div className="flex justify-between items-center bg-white/40 p-3 rounded-xl">
+                                        <div className="flex items-center gap-2"><span className="text-xl">🥈</span><span className="font-bold text-yellow-900/80">{topWinners.second.name}</span></div>
+                                        <span className="font-mono text-sm text-yellow-800/80">{topWinners.second.responseTimeSeconds}s</span>
+                                    </div>
+                                )}
+                                {topWinners.third && (
+                                    <div className="flex justify-between items-center bg-white/30 p-3 rounded-xl">
+                                        <div className="flex items-center gap-2"><span className="text-lg">🥉</span><span className="font-bold text-yellow-900/70">{topWinners.third.name}</span></div>
+                                        <span className="font-mono text-sm text-yellow-800/70">{topWinners.third.responseTimeSeconds}s</span>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
@@ -540,13 +555,28 @@ const QuestionPage = () => {
                             )}
 
                             {/* Winner Board — only if admin toggled it ON and question matches */}
-                            {showWinner && currentQuestionId === effectiveQuestion?.id && winner && (
-                                <div className="mt-8 p-8 rounded-2xl border-2 border-yellow-300 text-center animate-fade-in shadow-lg" style={{ background: 'linear-gradient(135deg, #FEF9C3, #FDE68A)' }}>
-                                    <div className="text-5xl mb-3">🏆</div>
-                                    <h3 className="text-2xl font-extrabold text-yellow-900 mb-2">الفائز</h3>
-                                    <p className="text-3xl font-black text-yellow-800 mb-1">{winner.name}</p>
-                                    <div className="inline-block bg-yellow-900/10 px-4 py-1 rounded-full mt-2">
-                                        <p className="text-xs text-yellow-700 font-mono">{formatDate(winner.submittedAt)}</p>
+                            {showWinner && currentQuestionId === effectiveQuestion?.id && topWinners && Object.keys(topWinners).length > 0 && (
+                                <div className="mt-8 p-6 rounded-2xl border-2 border-yellow-300 animate-fade-in shadow-lg text-right" style={{ background: 'linear-gradient(135deg, #FEF9C3, #FDE68A)' }}>
+                                    <h3 className="text-xl font-extrabold text-yellow-900 mb-4 text-center">🏆 أسرع الإجابات الصحيحة</h3>
+                                    <div className="flex flex-col gap-3">
+                                        {topWinners.first && (
+                                            <div className="flex justify-between items-center bg-white/50 p-3 rounded-xl">
+                                                <div className="flex items-center gap-2"><span className="text-2xl">🥇</span><span className="font-bold text-yellow-900">{topWinners.first.name}</span></div>
+                                                <span className="font-mono text-sm text-yellow-800">{topWinners.first.responseTimeSeconds}s</span>
+                                            </div>
+                                        )}
+                                        {topWinners.second && (
+                                            <div className="flex justify-between items-center bg-white/40 p-3 rounded-xl">
+                                                <div className="flex items-center gap-2"><span className="text-xl">🥈</span><span className="font-bold text-yellow-900/80">{topWinners.second.name}</span></div>
+                                                <span className="font-mono text-sm text-yellow-800/80">{topWinners.second.responseTimeSeconds}s</span>
+                                            </div>
+                                        )}
+                                        {topWinners.third && (
+                                            <div className="flex justify-between items-center bg-white/30 p-3 rounded-xl">
+                                                <div className="flex items-center gap-2"><span className="text-lg">🥉</span><span className="font-bold text-yellow-900/70">{topWinners.third.name}</span></div>
+                                                <span className="font-mono text-sm text-yellow-800/70">{topWinners.third.responseTimeSeconds}s</span>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             )}

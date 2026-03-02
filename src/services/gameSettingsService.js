@@ -26,6 +26,7 @@ export const GameSettingsService = {
         showWinner: data.show_winner ?? false,
         currentQuestionId: data.current_question_id ?? null,
         winnerName: data.winner_name ?? null,
+        topWinners: data.top_winners ?? null,
       };
     }
 
@@ -38,7 +39,7 @@ export const GameSettingsService = {
 
     if (insertError) {
       console.error('Error creating game settings:', insertError);
-      return { id: null, showWinner: false, currentQuestionId: null };
+      return { id: null, showWinner: false, currentQuestionId: null, topWinners: null };
     }
 
     return {
@@ -46,14 +47,15 @@ export const GameSettingsService = {
       showWinner: false,
       currentQuestionId: null,
       winnerName: null,
+      topWinners: null,
     };
   },
 
   /**
    * Toggle the show_winner flag.
-   * When enabling, stores winnerName. When disabling, clears it.
+   * When enabling, stores winnerName and topWinners. When disabling, clears them.
    */
-  toggleShowWinner: async (currentValue, winnerName = null) => {
+  toggleShowWinner: async (currentValue, winnerName = null, topWinners = null) => {
     const settings = await GameSettingsService.getSettings();
     if (!settings.id) throw new Error('No game settings row found');
 
@@ -64,6 +66,7 @@ export const GameSettingsService = {
       .update({
         show_winner: newValue,
         winner_name: newValue ? winnerName : null,
+        top_winners: newValue ? topWinners : null,
       })
       .eq('id', settings.id);
 
